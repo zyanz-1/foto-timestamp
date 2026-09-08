@@ -273,30 +273,68 @@ function roundedRect(ctx,x,y,w,h,r){
 }
 
 processBtn.addEventListener("click",()=>{
- const coords=valid();if(!coords)return;
- const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
- canvas.width=originalImage.naturalWidth;canvas.height=originalImage.naturalHeight;ctx.drawImage(originalImage,0,0);
- const s=Number(size.value),line1=`${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`,line2=dateTimeText();
- ctx.font=`700 ${s}px "${fontFamily.value}",sans-serif`;
- const padX=Math.round(s*.65),padY=Math.round(s*.5),gap=Math.round(s*.18);
- const w=Math.max(ctx.measureText(line1).width,ctx.measureText(line2).width)+padX*2,h=s*2+gap+padY*2,margin=Math.round(s*.8);
- let x=$("position").value.includes("right")?canvas.width-w-margin:margin;
- let y=$("position").value.includes("bottom")?canvas.height-h-margin:margin;
- x=Math.max(0,x);y=Math.max(0,y);
- ctx.save();
-  roundedRect(ctx,x,y,w,h,Math.round(s*.25));
-  const hex=bgColor.value.replace("#","");
-  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
-  ctx.fillStyle=`rgba(${r},${g},${b},${Number(bgOpacity.value)/100})`;
-  ctx.fill();
- ctx.fillStyle=fontColor.value;ctx.textBaseline="top";ctx.font=`700 ${s}px "${fontFamily.value}",sans-serif`;
- ctx.fillText(line1,x+padX,y+padY);ctx.fillText(line2,x+padX,y+padY+s+gap);ctx.restore();
+  const coords=valid();if(!coords)return;
 
- preview.innerHTML="";preview.appendChild(canvas);
- canvas.toBlob(blob=>{
-  outputBlob=blob;downloadBtn.disabled=false;
-  setStatus("Timestamp berhasil ditambahkan. Foto siap diunduh.");
- },"image/jpeg",.95);
+  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
+  canvas.width=originalImage.naturalWidth;
+  canvas.height=originalImage.naturalHeight;
+  ctx.drawImage(originalImage,0,0);
+
+  const s=Number(size.value);
+  const line1=`${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`;
+  const line2=dateTimeText();
+
+  const fontName=fontFamily.value || "Arial";
+  const textColor=fontColor.value || "#ffffff";
+  const backgroundColor=bgColor.value || "#000000";
+  const backgroundAlpha=Number(bgOpacity.value)/100;
+
+  // Set font BEFORE measuring, so the background always fits the selected font.
+  ctx.font=`700 ${s}px "${fontName}", Arial, sans-serif`;
+  ctx.textBaseline="top";
+
+  const padX=Math.round(s*.65);
+  const padY=Math.round(s*.5);
+  const gap=Math.round(s*.18);
+  const w=Math.ceil(Math.max(ctx.measureText(line1).width,ctx.measureText(line2).width)+padX*2);
+  const h=Math.ceil(s*2+gap+padY*2);
+  const margin=Math.round(s*.8);
+
+  let x=$("position").value.includes("right")?canvas.width-w-margin:margin;
+  let y=$("position").value.includes("bottom")?canvas.height-h-margin:margin;
+  x=Math.max(0,x);y=Math.max(0,y);
+
+  ctx.save();
+
+  // Only the background receives the selected transparency.
+  roundedRect(ctx,x,y,w,h,Math.round(s*.25));
+  ctx.globalAlpha=backgroundAlpha;
+  ctx.fillStyle=backgroundColor;
+  ctx.fill();
+
+  // Critical fix: restore full opacity before drawing text.
+  // Previously, a low background opacity could also make white text transparent.
+  ctx.globalAlpha=1;
+  ctx.fillStyle=textColor;
+  ctx.font=`700 ${s}px "${fontName}", Arial, sans-serif`;
+  ctx.textBaseline="top";
+  ctx.fillText(line1,x+padX,y+padY);
+  ctx.fillText(line2,x+padX,y+padY+s+gap);
+
+  ctx.restore();
+
+  preview.innerHTML="";
+  preview.appendChild(canvas);
+
+  canvas.toBlob(blob=>{
+    if(!blob){
+      setStatus("Gagal membuat file hasil.",true);
+      return;
+    }
+    outputBlob=blob;
+    downloadBtn.disabled=false;
+    setStatus("Timestamp berhasil ditambahkan. Foto siap diunduh.");
+  },"image/jpeg",.95);
 });
 
 downloadBtn.addEventListener("click",()=>{
