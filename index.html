@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f172a">
 <meta name="description" content="Tambahkan koordinat, tanggal, dan waktu ke foto secara lokal di browser.">
-<title>FotoStamp — Timestamp Foto</title>
+<title>FotoStamp — Timestamp Foto V6</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e7ec;
@@ -48,6 +48,15 @@ textarea{}
 .options{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .range-row{display:flex;align-items:center;gap:9px}.range-row input{flex:1}.range-value{width:38px;text-align:right;font-size:12px;color:var(--muted)}
 input[type=range]{accent-color:var(--primary)}
+.color-options{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.color-field{border:1px solid var(--line);border-radius:9px;padding:9px;background:#fafbfc}
+.color-field label{margin:0 0 6px;font-size:11px}
+.color-control{display:flex;align-items:center;gap:8px}
+input[type=color]{width:42px;height:32px;padding:2px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;cursor:pointer}
+.color-code{font-size:11px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.custom-toggle{display:flex;align-items:center;gap:8px;margin-top:13px;font-size:12px;color:#344054;cursor:pointer}
+.custom-toggle input{width:15px;height:15px;accent-color:var(--primary)}
+.color-options.disabled{opacity:.5}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
 .btn{height:43px;border:0;border-radius:9px;font-weight:800;cursor:pointer}.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
 .btn-secondary{background:#eef2f6;color:#344054}.btn:disabled{opacity:.45;cursor:not-allowed}
@@ -130,6 +139,30 @@ input[type=range]{accent-color:var(--primary)}
         </div>
       </div>
 
+      <label class="custom-toggle">
+        <input id="customColors" type="checkbox">
+        <span>Gunakan warna kustom</span>
+      </label>
+
+      <div id="colorOptions" class="color-options disabled">
+        <div class="color-field">
+          <label for="bgColor">Background</label>
+          <div class="color-control">
+            <input id="bgColor" type="color" value="#5a5a5a" disabled>
+            <span id="bgColorCode" class="color-code">#5A5A5A</span>
+          </div>
+        </div>
+        <div class="color-field">
+          <label for="textColor">Warna teks</label>
+          <div class="color-control">
+            <input id="textColor" type="color" value="#ffffff" disabled>
+            <span id="textColorCode" class="color-code">#FFFFFF</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hint">Default: background abu-abu transparan dan teks putih. Aktifkan warna kustom jika diperlukan.</div>
+
       <div class="actions">
         <button id="process" class="btn btn-primary" disabled>Tambahkan Timestamp</button>
         <button id="reset" class="btn btn-secondary">Reset</button>
@@ -156,6 +189,8 @@ input[type=range]{accent-color:var(--primary)}
 const $=id=>document.getElementById(id);
 const fileInput=$("file"),drop=$("drop"),processBtn=$("process"),downloadBtn=$("download");
 const preview=$("preview"),status=$("status"),size=$("size"),sizeValue=$("sizeValue");
+const customColors=$("customColors"),colorOptions=$("colorOptions"),bgColor=$("bgColor"),textColor=$("textColor");
+const bgColorCode=$("bgColorCode"),textColorCode=$("textColorCode");
 let originalImage=null,outputBlob=null,originalFileName="foto";
 
 function pad(n){return String(n).padStart(2,"0")}
@@ -167,6 +202,23 @@ function setNow(){
 setNow();
 
 size.addEventListener("input",()=>sizeValue.textContent=size.value);
+
+function updateColorControls(){
+ const enabled=customColors.checked;
+ bgColor.disabled=!enabled;
+ textColor.disabled=!enabled;
+ colorOptions.classList.toggle("disabled",!enabled);
+}
+function updateColorCodes(){
+ bgColorCode.textContent=bgColor.value.toUpperCase();
+ textColorCode.textContent=textColor.value.toUpperCase();
+}
+customColors.addEventListener("change",updateColorControls);
+bgColor.addEventListener("input",updateColorCodes);
+textColor.addEventListener("input",updateColorCodes);
+updateColorControls();
+updateColorCodes();
+
 drop.addEventListener("click",()=>fileInput.click());
 drop.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" ")fileInput.click()});
 fileInput.addEventListener("change",e=>{if(e.target.files[0])loadImage(e.target.files[0])});
@@ -226,6 +278,12 @@ function roundedRect(ctx,x,y,w,h,r){
  ctx.arcTo(x+w,y,x+w,y+h,rr);ctx.arcTo(x+w,y+h,x,y+h,rr);ctx.arcTo(x,y+h,x,y,rr);ctx.arcTo(x,y,x+w,y,rr);ctx.closePath();
 }
 
+function hexToRgba(hex,alpha){
+ const h=hex.replace("#","");
+ const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);
+ return `rgba(${r},${g},${b},${alpha})`;
+}
+
 processBtn.addEventListener("click",()=>{
  const coords=valid();if(!coords)return;
  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
@@ -237,9 +295,18 @@ processBtn.addEventListener("click",()=>{
  let x=$("position").value.includes("right")?canvas.width-w-margin:margin;
  let y=$("position").value.includes("bottom")?canvas.height-h-margin:margin;
  x=Math.max(0,x);y=Math.max(0,y);
- ctx.save();roundedRect(ctx,x,y,w,h,Math.round(s*.25));ctx.fillStyle="rgba(0,0,0,.62)";ctx.fill();
- ctx.fillStyle="#fff";ctx.textBaseline="top";ctx.font=`700 ${s}px Arial,sans-serif`;
- ctx.fillText(line1,x+padX,y+padY);ctx.fillText(line2,x+padX,y+padY+s+gap);ctx.restore();
+ ctx.save();
+ roundedRect(ctx,x,y,w,h,Math.round(s*.25));
+ const bg = customColors.checked ? hexToRgba(bgColor.value,0.48) : "rgba(90,90,90,.48)";
+ const fg = customColors.checked ? textColor.value : "#ffffff";
+ ctx.fillStyle=bg;
+ ctx.fill();
+ ctx.fillStyle=fg;
+ ctx.textBaseline="top";
+ ctx.font=`700 ${s}px Arial,sans-serif`;
+ ctx.fillText(line1,x+padX,y+padY);
+ ctx.fillText(line2,x+padX,y+padY+s+gap);
+ ctx.restore();
 
  preview.innerHTML="";preview.appendChild(canvas);
  canvas.toBlob(blob=>{
@@ -257,6 +324,8 @@ downloadBtn.addEventListener("click",()=>{
 
 $("reset").addEventListener("click",()=>{
  originalImage=null;outputBlob=null;fileInput.value="";$("mapsLocation").value="";
+ customColors.checked=false;bgColor.value="#5a5a5a";textColor.value="#ffffff";
+ updateColorControls();updateColorCodes();
  setNow();$("fileName").textContent="Belum ada foto dipilih";$("previewSize").textContent="—";
  processBtn.disabled=true;downloadBtn.disabled=true;
  preview.innerHTML='<div class="empty"><div class="empty-icon">🖼️</div>Pilih foto untuk melihat preview</div>';
