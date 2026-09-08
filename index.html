@@ -38,6 +38,7 @@ label{display:block;font-size:12px;font-weight:750;margin:16px 0 6px}
 input[type=text],input[type=date],input[type=time],select{
  width:100%;height:42px;padding:0 11px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:var(--text);outline:none
 }
+#mapsLocation{font-size:14px}
 input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(21,94,239,.10)}
 textarea{}
 .paste{height:42px;padding:0 12px;border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:9px;font-weight:700;cursor:pointer}
@@ -100,11 +101,9 @@ input[type=range]{accent-color:var(--primary)}
       <h2 class="section-title" style="margin-top:20px">2. Informasi Timestamp</h2>
 
       <label for="mapsLocation">Lokasi Google Maps</label>
-      <div class="input-wrap">
-        <input id="mapsLocation" type="text" inputmode="decimal" placeholder="-2.5639942720543907, 115.0435160264135">
-        <button id="paste" class="paste" type="button">Paste</button>
-      </div>
-      <div class="hint">Copy koordinat dari Google Maps dalam format <b>latitude, longitude</b>.</div>
+      <input id="mapsLocation" type="text" inputmode="decimal" autocomplete="off"
+             placeholder="-2.5639942720543907, 115.0435160264135">
+      <div class="hint">Salin koordinat dari Google Maps, lalu tekan lama/klik kanan pada kolom ini dan pilih <b>Paste</b>.</div>
 
       <div class="row">
         <div><label for="date">Tanggal</label><input id="date" type="date"></div>
@@ -197,27 +196,19 @@ function loadImage(file){
 
 function parseMapsLocation(value){
  const text=String(value).trim();
- // Mendukung paste koordinat standar Google Maps dan angka desimal.
- const parts=text.split(/[\s,]+/).filter(Boolean);
- if(parts.length!==2)return null;
- const lat=Number(parts[0].replace(",","."));
- const lon=Number(parts[1].replace(",","."));
+ // Mendukung paste koordinat Google Maps:
+ // -2.5639942720543907, 115.0435160264135
+ // serta format dengan spasi/newline.
+ const cleaned=text.replace(/[()]/g,"").trim();
+ const match=cleaned.match(/^\s*([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))\s*,\s*([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))\s*$/);
+ if(!match)return null;
+ const lat=Number(match[1].replace(",","."));
+ const lon=Number(match[2].replace(",","."));
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180)return null;
  return {lat,lon};
 }
 
 function setStatus(text,error=false){status.textContent=text;status.style.color=error?"#b42318":"#667085";status.style.background=error?"#fff1f0":"#f8fafc"}
-
-$("paste").addEventListener("click",async()=>{
- try{
-  const text=await navigator.clipboard.readText();
-  $("mapsLocation").value=text.trim();
-  setStatus("Koordinat berhasil ditempel dari clipboard.");
- }catch(e){
-  $("mapsLocation").focus();
-  setStatus("Clipboard tidak dapat dibaca. Silakan paste dengan Ctrl+V.",true);
- }
-});
 
 function valid(){
  if(!originalImage){setStatus("Pilih foto terlebih dahulu.",true);return null}
